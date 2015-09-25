@@ -44,9 +44,15 @@
   </ItemGroup>
   <ItemGroup>
     <Content Include="Index.aspx" />
-    <Content Include="Web.config" />
+    <Content Include="Styles.css" />
+    <Content Include="Web.config">
+      <SubType>Designer</SubType>
+    </Content>
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="Captcha.ashx.cs">
+      <DependentUpon>Captcha.ashx</DependentUpon>
+    </Compile>
     <Compile Include="Index.aspx.cs">
       <DependentUpon>Index.aspx</DependentUpon>
       <SubType>ASPXCodeBehind</SubType>
@@ -61,6 +67,9 @@
       <Project>{7e8197e8-beef-4d90-bffa-07d91c8209be}</Project>
       <Name>StatelessCaptcha</Name>
     </ProjectReference>
+  </ItemGroup>
+  <ItemGroup>
+    <Content Include="Captcha.ashx" />
   </ItemGroup>
   <PropertyGroup>
     <VisualStudioVersion Condition="'$(VisualStudioVersion)' == ''">10.0</VisualStudioVersion>

@@ -7,45 +7,30 @@ namespace StatelessCaptchaWeb
 {
     public partial class Index : Page
     {
+        private string _validationString;
+
         protected void Page_Load(object sender, EventArgs e)
         {
-            if (string.IsNullOrEmpty(HiddenField.Value))
-                ShowStartState();
+            if (!string.IsNullOrEmpty(HiddenField.Value))
+                _validationString = HiddenField.Value + TextBox.Text;
+
+            var identifier = StatelessCaptchaService.GetRandomIdentifier();
+
+            var imageName = identifier;
+            if (Image.Width.Value > 0 && Image.Height.Value > 0)
+                imageName += Image.Width.Value + "x" + Image.Height.Value;
+
+            Image.ImageUrl = "/Captcha.ashx?" + imageName;
+            HiddenField.Value = identifier;
         }
 
         protected void SubmitButton_Click(object sender, EventArgs e)
         {
-            var validationString = HiddenField.Value + TextBox.Text;
+            var success = StatelessCaptchaService.CheckEntry(_validationString);
 
-            SetVisibilities(StatelessCaptchaService.CheckEntry(validationString));
-        }
-
-        protected void TryAgainButton_Click(object sender, EventArgs e)
-        {
-            ShowStartState();
-        }
-
-        private void ShowStartState()
-        {
-            SetVisibilities(null);
-            TextBox.Text = string.Empty;
-
-            var identifier = StatelessCaptchaService.GetRandomIdentifier();
-            var width = Image.Width;
-            var height = Image.Height;
-
-            Image.ImageUrl = "/Captcha.ashx?image=" + identifier + width + "x" + height;
-            HiddenField.Value = identifier;
-        }
-
-        private void SetVisibilities(bool? succeeded)
-        {
-            StartLabel.Visible = succeeded == null;
-            FailLabel.Visible = succeeded == false;
-            SuccessLabel.Visible = succeeded == true;
-
-            SubmitButton.Visible = succeeded != true;
-            TryAgainButton.Visible = succeeded == true;
+            StartLabel.Visible = false;
+            FailLabel.Visible = !success;
+            SuccessLabel.Visible = success;
         }
     }
 }
