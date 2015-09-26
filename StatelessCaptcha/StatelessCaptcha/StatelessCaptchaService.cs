@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Concurrent;
+using System.Globalization;
 using System.Linq;
 using System.Security.Cryptography;
 using System.Text;
@@ -40,32 +41,41 @@ namespace StatelessCaptcha
 
             if (match.Success)
                 return GetPngImage(match.Groups[1].Value,
-                    int.Parse(match.Groups[2].Value), int.Parse(match.Groups[3].Value));
+                    int.Parse(match.Groups[2].Value, CultureInfo.InvariantCulture.NumberFormat),
+                    int.Parse(match.Groups[3].Value, CultureInfo.InvariantCulture.NumberFormat));
             else
                 return GetPngImage(imageName);
         }
 
-        public static byte[] GetPngImage(string identifier, int width = 200, int height = 100)
+        public static byte[] GetPngImage(string identifier)
+        {
+            return GetPngImage(identifier, 200, 400);
+        }
+
+        public static byte[] GetPngImage(string identifier, int width, int height)
         {
             var value = DoHash(_identifierRegex.IsMatch(identifier) ?
                 identifier : GetRandomIdentifier());
             return CaptchaImageCreator.CreatePngImage(value, width, height);
         }
 
-        public static bool CheckEntry(string combinedIndentiferAndEntry)
+        public static bool CheckEntry(string combinedIdentifierAndEntry)
         {
-            var identifier = combinedIndentiferAndEntry.Substring(
-                0, combinedIndentiferAndEntry.Length / 2);
-            var entry = combinedIndentiferAndEntry.Substring(
-                identifier.Length, combinedIndentiferAndEntry.Length - identifier.Length);
+            if (combinedIdentifierAndEntry == null)
+                combinedIdentifierAndEntry = string.Empty;
+
+            var identifier = combinedIdentifierAndEntry.Substring(
+                0, combinedIdentifierAndEntry.Length / 2);
+            var entry = combinedIdentifierAndEntry.Substring(
+                identifier.Length, combinedIdentifierAndEntry.Length - identifier.Length);
 
             return CheckEntry(identifier, entry);
         }
         
         public static bool CheckEntry(string identifier, string entry)
         {
-            return identifier.Length == 6 && entry.Length == 6 && !CheckIsOverused(identifier) &&
-                DoHash(identifier) == entry;
+            return identifier != null && entry != null && identifier.Length == 6 &&
+                entry.Length == 6 && !CheckIsOverused(identifier) && DoHash(identifier) == entry;
         }
 
         private static string DoHash(string identifier)
