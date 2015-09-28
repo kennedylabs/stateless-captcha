@@ -125,20 +125,24 @@ namespace StatelessCaptcha
         {
             path.Flatten();
 
+            var sourceData = path.PathData;
+
             var figures = new List<List<PointF>>();
             var currentFigure = default(List<PointF>);
 
-            var sourcePointCount = path.PointCount;
+            var sourcePointCount = sourceData.Points.Length;
             for (int index = 0; index < sourcePointCount; index++)
             {
-                var currentPoint = path.PathPoints[index];
-                var nextPoint = path.PathPoints[(index + 1) % sourcePointCount];
+                var currentPoint = sourceData.Points[index];
+                var currentPathType = sourceData.Types[index];
+                var nextPoint = sourceData.Points[(index + 1) % sourcePointCount];
+                var nextPathType = sourceData.Types[(index + 1) % sourcePointCount];
 
-                if ((path.PathTypes[index] & 0x7) == 0)
+                if ((currentPathType & 0x7) == 0)
                     currentFigure = null;
-                if ((path.PathTypes[(index + 1) % sourcePointCount] & 0x7) == 0)
+                if ((nextPathType & 0x7) == 0)
                     nextPoint = currentPoint;
-                if ((path.PathTypes[index] & 0x80) == 0x80)
+                if ((currentPathType & 0x80) == 0x80)
                     nextPoint = currentFigure.Count > 0 ? currentFigure[0] : currentPoint;
 
                 if (currentFigure == null)
