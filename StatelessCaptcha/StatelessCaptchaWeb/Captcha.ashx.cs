@@ -8,7 +8,7 @@ namespace StatelessCaptchaWeb
         public void ProcessRequest(HttpContext context)
         {
             context.Response.ContentType = "image/png";
-            context.Response.BinaryWrite(StatelessCaptchaService.GetPngImageFromName(
+            context.Response.BinaryWrite(StatelessCaptchaService.GetImageFromName(
                 context.Request.QueryString.ToString()));
         }
 

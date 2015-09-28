@@ -14,7 +14,7 @@ namespace StatelessCaptchaWeb
             if (!string.IsNullOrEmpty(HiddenField.Value))
                 _validationString = HiddenField.Value + TextBox.Text;
 
-            var identifier = StatelessCaptchaService.GetRandomIdentifier();
+            var identifier = StatelessCaptchaService.CreateRandomIdentifier();
 
             var imageName = identifier;
             if (Image.Width.Value > 0 && Image.Height.Value > 0)
@@ -22,6 +22,8 @@ namespace StatelessCaptchaWeb
 
             Image.ImageUrl = "/Captcha.ashx?" + imageName;
             HiddenField.Value = identifier;
+
+            TextBox.Focus();
         }
 
         protected void SubmitButton_Click(object sender, EventArgs e)

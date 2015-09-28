@@ -25,7 +25,7 @@ namespace StatelessCaptcha
             set { _secret = value; }
         }
 
-        public static string GetRandomIdentifier()
+        public static string CreateRandomIdentifier()
         {
             var stringBuilder = new StringBuilder();
 
@@ -35,27 +35,27 @@ namespace StatelessCaptcha
             return stringBuilder.ToString();
         }
 
-        public static byte[] GetPngImageFromName(string imageName)
+        public static byte[] GetImageFromName(string imageName)
         {
             var match = _fullImageNameRegex.Match(imageName);
 
             if (match.Success)
-                return GetPngImage(match.Groups[1].Value,
+                return GetImage(match.Groups[1].Value,
                     int.Parse(match.Groups[2].Value, CultureInfo.InvariantCulture.NumberFormat),
                     int.Parse(match.Groups[3].Value, CultureInfo.InvariantCulture.NumberFormat));
             else
-                return GetPngImage(imageName);
+                return GetImage(imageName);
         }
 
-        public static byte[] GetPngImage(string identifier)
+        public static byte[] GetImage(string identifier)
         {
-            return GetPngImage(identifier, 200, 400);
+            return GetImage(identifier, 200, 400);
         }
 
-        public static byte[] GetPngImage(string identifier, int width, int height)
+        public static byte[] GetImage(string identifier, int width, int height)
         {
             var value = DoHash(_identifierRegex.IsMatch(identifier) ?
-                identifier : GetRandomIdentifier());
+                identifier : CreateRandomIdentifier());
             return CaptchaImageCreator.CreatePngImage(value, width, height);
         }
 

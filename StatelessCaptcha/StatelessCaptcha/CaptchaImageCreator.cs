@@ -4,6 +4,7 @@ using System.Drawing;
 using System.Drawing.Drawing2D;
 using System.Drawing.Imaging;
 using System.IO;
+using System.Linq;
 
 namespace StatelessCaptcha
 {
@@ -13,15 +14,8 @@ namespace StatelessCaptcha
         private static readonly FontFamily _fontFamily = new FontFamily("Times New Roman");
         private static readonly Lazy<RectangleF> _referenceHeight =
             new Lazy<RectangleF>(GetReferenceHeight);
-
-        private static RectangleF GetReferenceHeight()
-        {
-            using (var path = new GraphicsPath())
-            {
-                path.AddString("|", _fontFamily, 0, 1, PointF.Empty, StringFormat.GenericDefault);
-                return path.GetBounds();
-            }
-        }
+        private static readonly Lazy<PerlinNoiseGenerator> _perlinNoiseGenerator =
+            new Lazy<PerlinNoiseGenerator>(() => new PerlinNoiseGenerator());
 
         internal static byte[] CreatePngImage(string value, int width, int height)
         {
@@ -29,14 +23,29 @@ namespace StatelessCaptcha
             {
                 var graphics = Graphics.FromImage(bitmap);
                 graphics.SmoothingMode = SmoothingMode.AntiAlias;
+                graphics.Clear(Color.Silver);
 
-                graphics.Clear(Color.Gainsboro);
+                var noiseAmplitude = Math.Min(width, height) / 8f;
+                var noiseFrequency = Math.Min(width, height) / 2f;
 
-                foreach (var path in CreateCirclePaths((float)width, (float)height))
-                    graphics.FillPath(Brushes.Silver, path);
+                using (var path = new GraphicsPath())
+                {
+                    using (var circlesPath = new GraphicsPath())
+                    {
+                        CreateCircles(circlesPath, width, height);
+                        FlattenAndSegmentWithNoise(circlesPath, noiseAmplitude, noiseFrequency);
+                        path.AddPath(circlesPath, false);
+                    }
 
-                graphics.FillPath(Brushes.Gray,
-                    CreateTextPath(value, (float)width, (float)height));
+                    using (var textPath = new GraphicsPath())
+                    {
+                        CreateText(textPath, value, width, height);
+                        FlattenAndSegmentWithNoise(textPath, noiseAmplitude, noiseFrequency);
+                        path.AddPath(textPath, false);
+                    }
+
+                    graphics.FillPath(Brushes.DimGray, path);
+                }
 
                 using (var memoryStream = new MemoryStream())
                 {
@@ -46,12 +55,12 @@ namespace StatelessCaptcha
             }
         }
 
-        private static IEnumerable<GraphicsPath> CreateCirclePaths(float width, float height)
+        private static void CreateCircles(GraphicsPath path, float width, float height)
         {
             var count = _random.Next(20, 40);
 
             var radiusMin = Math.Min(Math.Min(width, height) / 4, Math.Max(width, height) / 16);
-            var radiusMax = Math.Min(Math.Min(width, height) / 2, Math.Max(width, height) / 4);
+            var radiusMax = Math.Min(Math.Min(width, height), Math.Max(width, height) / 2);
 
             var xMin = -2 * radiusMax;
             var xMax = width + 2 * radiusMax;
@@ -59,23 +68,32 @@ namespace StatelessCaptcha
             var yMin = -radiusMax;
             var yMax = height + radiusMax;
 
-            for (int index = 0; index < count; index++)
+            var circles = new List<RectangleF>();
+
+            for (int countIndex = 0; countIndex < count; countIndex++)
             {
                 var radius = (float)(radiusMin + _random.NextDouble() * (radiusMax - radiusMin));
-                var x = (float)(xMin + _random.NextDouble() * (xMax - xMin));
-                var y = (float)(yMin + _random.NextDouble() * (yMax - yMin));
 
-                var path = new GraphicsPath();
-                path.AddEllipse(new RectangleF(x - radius, y - radius, 2 * radius, 2 * radius));
-                FlattenAndSegment(path);
+                var isOverlapping = true;
+                for (int attempt = 0; isOverlapping && attempt < 100; attempt++)
+                {
+                    var x = (float)(xMin + _random.NextDouble() * (xMax - xMin));
+                    var y = (float)(yMin + _random.NextDouble() * (yMax - yMin));
+                    var circle = new RectangleF(x - radius, y - radius, 2 * radius, 2 * radius);
 
-                yield return path;
+                    isOverlapping = circles.Any(c => c.IntersectsWith(circle));
+
+                    if (!isOverlapping)
+                    {
+                        circles.Add(circle);
+                        path.AddEllipse(circle);
+                    }
+                }
             }
         }
 
-        private static GraphicsPath CreateTextPath(string text, float width, float height)
+        private static void CreateText(GraphicsPath path, string text, float width, float height)
         {
-            var path = new GraphicsPath();
             path.AddString(text, _fontFamily, 0, 1, PointF.Empty, StringFormat.GenericDefault);
 
             var bounds = path.GetBounds();
@@ -83,30 +101,27 @@ namespace StatelessCaptcha
                 bounds.X, _referenceHeight.Value.Y, bounds.Width, _referenceHeight.Value.Height);
 
             var margin = Math.Min(width, height) / 8;
-            var layoutRect = new RectangleF(
+            var targetRect = new RectangleF(
                 margin, margin, width - 2 * margin, height - 2 * margin);
 
-            path.Transform(GetScaleFitTransform(sourceRect, layoutRect));
+            var scale = targetRect.Width / targetRect.Height > sourceRect.Width / sourceRect.Height ?
+                targetRect.Height / sourceRect.Height : targetRect.Width / sourceRect.Width;
 
-            return path;
-        }
-
-        private static Matrix GetScaleFitTransform(RectangleF source, RectangleF target)
-        {
-            var scale = target.Width / target.Height > source.Width / source.Height ?
-                target.Height / source.Height : target.Width / source.Width;
-
-            var x = target.X + (target.Width - scale * source.Width) / 2;
-            var y = target.Y + (target.Height - scale * source.Height) / 2;
+            var x = targetRect.X + (targetRect.Width - scale * sourceRect.Width) / 2;
+            var y = targetRect.Y + (targetRect.Height - scale * sourceRect.Height) / 2;
 
             var x1y1 = new PointF(x, y);
-            var x2y1 = new PointF(x + scale * source.Width, y);
-            var x1y2 = new PointF(x, y + scale * source.Height);
+            var x2y1 = new PointF(x + scale * sourceRect.Width, y);
+            var x1y2 = new PointF(x, y + scale * sourceRect.Height);
 
-            return new Matrix(source, new PointF[] { x1y1, x2y1, x1y2 });
+            using (var matrix = new Matrix(sourceRect, new PointF[] { x1y1, x2y1, x1y2 }))
+            {
+                path.Transform(matrix);
+            }
         }
 
-        private static void FlattenAndSegment(GraphicsPath path)
+        private static void FlattenAndSegmentWithNoise(
+            GraphicsPath path, float amplitude, float frequency)
         {
             path.Flatten();
 
@@ -132,7 +147,7 @@ namespace StatelessCaptcha
                     figures.Add(currentFigure);
                 }
 
-                currentFigure.AddRange(GetSegmentPoints(currentPoint, nextPoint));
+                currentFigure.AddRange(GetSegmentPoints(currentPoint, nextPoint, 5));
 
                 if ((path.PathTypes[index] & 0x80) == 0x80)
                     currentFigure = null;
@@ -140,25 +155,75 @@ namespace StatelessCaptcha
 
             path.Reset();
 
-            foreach (var figure in figures) path.AddPolygon(figure.ToArray());
+            AddNoise(figures, amplitude, frequency);
+
+            foreach (var figure in figures)
+                path.AddPolygon(figure.ToArray());
         }
 
-        private static IEnumerable<PointF> GetSegmentPoints(PointF point1, PointF point2)
+        private static IEnumerable<PointF> GetSegmentPoints(
+            PointF point1, PointF point2, float threshold)
         {
-            var distance = (float)Math.Sqrt(Math.Pow(point2.X - point1.X, 2) +
-                Math.Pow(point2.Y - point1.Y, 2));
-
             yield return point1;
 
-            var count = (int)(distance / 5);
-            for (int index = 1; index <= count; index++)
+            if (GetDistanceSquared(point1, point2) > threshold * threshold)
             {
-                var t = (float)index / (count + 1);
-                var x = (1 - t) * point1.X + t * point2.X;
-                var y = (1 - t) * point1.Y + t * point2.Y;
+                var count = 1 + (int)(GetDistance(point1, point2) / threshold);
+                {
+                    for (int index = 1; index < count; index++)
+                    {
+                        var t = (float)index / count;
+                        var x = (1 - t) * point1.X + t * point2.X;
+                        var y = (1 - t) * point1.Y + t * point2.Y;
 
-                yield return new PointF(x, y);
+                        yield return new PointF(x, y);
+                    }
+                }
             }
+        }
+
+        private static void AddNoise(List<List<PointF>> figures, float amplitude, float frequency)
+        {
+            var noiseGenerator = _perlinNoiseGenerator.Value;
+
+            var x1 = _random.Next(256);
+            var x2 = _random.Next(256);
+            var y1 = _random.Next(256);
+            var y2 = _random.Next(256);
+
+            for (int i = 0; i < figures.Count; i++)
+            {
+                for (int j = 0; j < figures[i].Count; j++)
+                {
+                    var p = figures[i][j];
+
+                    var x = p.X + amplitude * noiseGenerator.GetNoise(
+                        p.X / frequency + x1, p.Y / frequency + y1);
+                    var y = p.Y + amplitude * noiseGenerator.GetNoise(
+                        p.X / frequency + x2, p.Y / frequency + y2);
+
+                    figures[i][j] = new PointF(x, y);
+                }
+            }
+        }
+
+        private static RectangleF GetReferenceHeight()
+        {
+            using (var path = new GraphicsPath())
+            {
+                path.AddString("|", _fontFamily, 0, 1, PointF.Empty, StringFormat.GenericDefault);
+                return path.GetBounds();
+            }
+        }
+
+        private static float GetDistance(PointF p1, PointF p2)
+        {
+            return (float)Math.Sqrt(GetDistanceSquared(p1, p2));
+        }
+
+        private static float GetDistanceSquared(PointF p1, PointF p2)
+        {
+            return (p1.X - p2.X) * (p1.X - p2.X) + (p1.Y - p2.Y) * (p1.Y - p2.Y);
         }
     }
 }

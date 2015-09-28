@@ -14,7 +14,7 @@
                 <asp:HiddenField ID="HiddenField" runat="server" />
             </section>
             <section>
-                <asp:Image ID="Image" runat="server" Width="800" Height="200" />
+                <asp:Image ID="Image" runat="server" Width="250" Height="100" />
             </section>
             <section>
                 <asp:Label ID="StartLabel" runat="server" Text="Enter the characters shown." />
