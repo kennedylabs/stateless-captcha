@@ -1,4 +1,5 @@
 ﻿using StatelessCaptcha;
+using System;
 using System.Web;
 
 namespace StatelessCaptchaWeb
@@ -7,6 +8,8 @@ namespace StatelessCaptchaWeb
     {
         public void ProcessRequest(HttpContext context)
         {
+            if (context == null) throw new ArgumentNullException("context");
+
             context.Response.ContentType = "image/png";
             context.Response.BinaryWrite(StatelessCaptchaService.GetImageFromName(
                 context.Request.QueryString.ToString()));
