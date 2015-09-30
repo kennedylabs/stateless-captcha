@@ -11,6 +11,7 @@ namespace StatelessCaptcha
     public static class StatelessCaptchaService
     {
         private static string _secret = "qtsrgw";
+        private static Tuple<int, int> _defaultSize = Tuple.Create(250, 100);
         private static readonly Random _random = new Random();
         private static readonly Regex _fullImageNameRegex =
             new Regex("^([a-z]{6})([1-9][0-9]{1,2})x([1-9][0-9]{1,2})$");
@@ -25,7 +26,13 @@ namespace StatelessCaptcha
             set { _secret = value; }
         }
 
-        public static string CreateRandomIdentifier()
+        public static Tuple<int, int> DefaultSize
+        {
+            get { return _defaultSize; }
+            set { _defaultSize = value; }
+        }
+
+        public static string CreateIdentifier()
         {
             var stringBuilder = new StringBuilder();
 
@@ -33,6 +40,12 @@ namespace StatelessCaptcha
                 stringBuilder.Append(Convert.ToChar(_random.Next(97, 123)));
 
             return stringBuilder.ToString();
+        }
+
+        public static string CreateImageName(string identifier, int width, int height)
+        {
+            var size = width > 0 && height > 0 ? Tuple.Create(width, height) : DefaultSize;
+            return identifier + size.Item1 + "x" + size.Item2;
         }
 
         public static byte[] GetImageFromName(string imageName)
@@ -49,33 +62,21 @@ namespace StatelessCaptcha
 
         public static byte[] GetImage(string identifier)
         {
-            return GetImage(identifier, 200, 400);
+            return GetImage(identifier, DefaultSize.Item1, DefaultSize.Item2);
         }
 
         public static byte[] GetImage(string identifier, int width, int height)
         {
             var value = DoHash(_identifierRegex.IsMatch(identifier) ?
-                identifier : CreateRandomIdentifier());
+                identifier : CreateIdentifier());
             return CaptchaImageCreator.CreatePngImage(value, width, height);
         }
 
-        public static bool CheckEntry(string combinedIdentifierAndEntry)
-        {
-            if (combinedIdentifierAndEntry == null)
-                combinedIdentifierAndEntry = string.Empty;
-
-            var identifier = combinedIdentifierAndEntry.Substring(
-                0, combinedIdentifierAndEntry.Length / 2);
-            var entry = combinedIdentifierAndEntry.Substring(
-                identifier.Length, combinedIdentifierAndEntry.Length - identifier.Length);
-
-            return CheckEntry(identifier, entry);
-        }
-        
-        public static bool CheckEntry(string identifier, string entry)
+        public static bool CheckEntry(string identifier, string entry, bool checkOverused)
         {
             return identifier != null && entry != null && identifier.Length == 6 &&
-                entry.Length == 6 && !CheckIsOverused(identifier) && DoHash(identifier) == entry;
+                entry.Length == 6 && !(checkOverused && CheckIsOverused(identifier)) &&
+                DoHash(identifier) == entry;
         }
 
         private static string DoHash(string identifier)

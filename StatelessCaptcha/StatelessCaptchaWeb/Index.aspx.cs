@@ -7,28 +7,19 @@ namespace StatelessCaptchaWeb
 {
     public partial class Index : Page
     {
-        private string _validationString;
-
         protected void Page_Load(object sender, EventArgs e)
         {
-            if (!string.IsNullOrEmpty(HiddenField.Value))
-                _validationString = HiddenField.Value + TextBox.Text;
-
-            var identifier = StatelessCaptchaService.CreateRandomIdentifier();
-
-            var imageName = identifier;
-            if (Image.Width.Value > 0 && Image.Height.Value > 0)
-                imageName += Image.Width.Value + "x" + Image.Height.Value;
-
-            Image.ImageUrl = "/Captcha.ashx?" + imageName;
-            HiddenField.Value = identifier;
+            HiddenField.Value = StatelessCaptchaService.CreateIdentifier();
+            Image.ImageUrl = "/Captcha.ashx?" + StatelessCaptchaService.CreateImageName(
+                HiddenField.Value, (int)Image.Width.Value, (int)Image.Height.Value);
 
             TextBox.Focus();
         }
 
         protected void SubmitButton_Click(object sender, EventArgs e)
         {
-            var success = StatelessCaptchaService.CheckEntry(_validationString);
+            var success = StatelessCaptchaService.CheckEntry(
+                HiddenField.Value, TextBox.Text, true);
 
             StartLabel.Visible = false;
             FailLabel.Visible = !success;
