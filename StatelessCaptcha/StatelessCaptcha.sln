@@ -7,6 +7,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "StatelessCaptchaWeb", "Stat
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "StatelessCaptcha", "StatelessCaptcha\StatelessCaptcha.csproj", "{7E8197E8-BEEF-4D90-BFFA-07D91C8209BE}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "PblTestWeb", "PblTestWeb\PblTestWeb.csproj", "{3A93C0B0-F53E-496B-A0B9-D47078F2DA56}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -21,6 +23,10 @@ Global
 		{7E8197E8-BEEF-4D90-BFFA-07D91C8209BE}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{7E8197E8-BEEF-4D90-BFFA-07D91C8209BE}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{7E8197E8-BEEF-4D90-BFFA-07D91C8209BE}.Release|Any CPU.Build.0 = Release|Any CPU
+		{3A93C0B0-F53E-496B-A0B9-D47078F2DA56}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{3A93C0B0-F53E-496B-A0B9-D47078F2DA56}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{3A93C0B0-F53E-496B-A0B9-D47078F2DA56}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{3A93C0B0-F53E-496B-A0B9-D47078F2DA56}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

@@ -104,8 +104,8 @@ namespace StatelessCaptcha
             var targetRect = new RectangleF(
                 margin, margin, width - 2 * margin, height - 2 * margin);
 
-            var scale = targetRect.Width / targetRect.Height > sourceRect.Width / sourceRect.Height ?
-                targetRect.Height / sourceRect.Height : targetRect.Width / sourceRect.Width;
+            var scale = targetRect.Width / targetRect.Height > sourceRect.Width / sourceRect.Height
+                ? targetRect.Height / sourceRect.Height : targetRect.Width / sourceRect.Width;
 
             var x = targetRect.X + (targetRect.Width - scale * sourceRect.Width) / 2;
             var y = targetRect.Y + (targetRect.Height - scale * sourceRect.Height) / 2;

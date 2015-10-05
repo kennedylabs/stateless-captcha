@@ -10,26 +10,26 @@ namespace StatelessCaptcha
 {
     public static class StatelessCaptchaService
     {
-        private static string _secret = "qtsrgw";
-        private static Tuple<int, int> _defaultSize = Tuple.Create(250, 100);
+        private static Tuple<int, int> _defaultImageSize = Tuple.Create(250, 100);
+        private static string _hashSecret = "qtsrgw";
         private static readonly Random _random = new Random();
         private static readonly Regex _fullImageNameRegex =
             new Regex("^([a-z]{6})([1-9][0-9]{1,2})x([1-9][0-9]{1,2})$");
         private static readonly Regex _identifierRegex = new Regex("^([a-z]{6,8})$");
-        private static readonly SHA256Managed _sha256 = new SHA256Managed();
+        private static readonly Lazy<SHA256Managed> _sha256 = new Lazy<SHA256Managed>();
         private static readonly ConcurrentBag<string> _usedIdentifiersBag =
             new ConcurrentBag<string>();
 
-        public static string Secret
+        public static Tuple<int, int> DefaultImageSize
         {
-            get { return _secret; }
-            set { _secret = value; }
+            get { return _defaultImageSize; }
+            set { _defaultImageSize = value; }
         }
 
-        public static Tuple<int, int> DefaultSize
+        public static string HashSecret
         {
-            get { return _defaultSize; }
-            set { _defaultSize = value; }
+            get { return _hashSecret; }
+            set { _hashSecret = value; }
         }
 
         public static string CreateIdentifier()
@@ -44,7 +44,7 @@ namespace StatelessCaptcha
 
         public static string CreateImageName(string identifier, int width, int height)
         {
-            var size = width > 0 && height > 0 ? Tuple.Create(width, height) : DefaultSize;
+            var size = width > 0 && height > 0 ? Tuple.Create(width, height) : DefaultImageSize;
             return identifier + size.Item1 + "x" + size.Item2;
         }
 
@@ -62,7 +62,7 @@ namespace StatelessCaptcha
 
         public static byte[] GetImage(string identifier)
         {
-            return GetImage(identifier, DefaultSize.Item1, DefaultSize.Item2);
+            return GetImage(identifier, DefaultImageSize.Item1, DefaultImageSize.Item2);
         }
 
         public static byte[] GetImage(string identifier, int width, int height)
@@ -81,8 +81,8 @@ namespace StatelessCaptcha
 
         private static string DoHash(string identifier)
         {
-            var bytes = Encoding.UTF8.GetBytes(identifier + _secret);
-            bytes = _sha256.ComputeHash(bytes);
+            var bytes = Encoding.UTF8.GetBytes(identifier + HashSecret);
+            bytes = _sha256.Value.ComputeHash(bytes);
 
             var stringBuilder = new StringBuilder();
 
