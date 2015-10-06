@@ -53,6 +53,7 @@
     <Compile Include="Captcha.ashx.cs">
       <DependentUpon>Captcha.ashx</DependentUpon>
     </Compile>
+    <Compile Include="CaptchaManager.cs" />
     <Compile Include="Index.aspx.cs">
       <DependentUpon>Index.aspx</DependentUpon>
       <SubType>ASPXCodeBehind</SubType>

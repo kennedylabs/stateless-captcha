@@ -12,38 +12,36 @@
             <section>
                 <h1>Stateless Captcha</h1>
             </section>
-            <% if (!CanUpload) %>
+            <% if (!State.IsProvenHuman) %>
             <% { %>
             <section>
-                <asp:HiddenField ID="IdentifierField" runat="server" />
-                <asp:Image ID="CaptchaImage" runat="server" />
+                <input type="hidden" name="captcha-identifier" value="<% Response.Write(State.Identifier); %>" />
+                <img src="<% Response.Write("Captcha.ashx?" + State.ImageName); %>" />
             </section>
             <header>Enter Characters:</header>
-            <% if (ShowFailMessage) %>
+            <% if (State.ShowFailMessage) %>
             <% { %>
             <header class="fail">That was incorrect...</header>
             <% } %>
             <section>
-                <asp:TextBox ID="EntryTextBox" runat="server" />
-                <asp:Button ID="SubmitButton" runat="server" Text="Submit" />
+                <input type="text" name="captch-entry" value="" />
+                <input type="submit" value="Submit" />
             </section>
             <aside>Prove you're not a robot by entering text above.</aside>
             <% } %>
             <% else %>
             <% { %>
             <section class="spacer"></section>
-            <% if (ShowSuccessMessage) %>
+            <% if (State.ShowSuccessMessage) %>
             <% { %>
             <section>
-                <asp:TextBox ID="SuccessTextBox" runat="server" CssClass="success" ReadOnly="true" Text="You are not a robot!" />
+                <span class="success">You are not a robot!</span>
             </section>
             <% } %>
             <% } %>
             <footer>
-            <% EditTextBox.Enabled = CanUpload; %>
-            <% SaveButton.Enabled = CanUpload; %>
-                <asp:TextBox ID="EditTextBox" runat="server" Text="Foo" />
-                <asp:Button ID="SaveButton" runat="server" Text="Save" />
+                <input type="text" name="sample-entry" <%= State.IsProvenHuman ? string.Empty : "disabled" %> />
+                <input type="submit" value="Save" <%= State.IsProvenHuman ? string.Empty : "disabled" %> />
             </footer>
         </div>
     </form>

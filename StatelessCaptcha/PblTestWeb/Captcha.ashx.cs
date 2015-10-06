@@ -1,5 +1,4 @@
-﻿using System;
-using System.Web;
+﻿using System.Web;
 
 namespace PblTestWeb
 {
@@ -7,11 +6,7 @@ namespace PblTestWeb
     {
         public void ProcessRequest(HttpContext context)
         {
-            if (context == null) throw new ArgumentNullException("context");
-
-            context.Response.ContentType = "image/png";
-            context.Response.BinaryWrite(StatelessCaptchaService.GetImageFromName(
-                context.Request.QueryString.ToString()));
+            CaptchaManager.WriteImageToResponse(context);
         }
 
         public bool IsReusable { get { return true; } }
