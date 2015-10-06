@@ -6,15 +6,17 @@ namespace PblTestWeb
 {
     public class CaptchaState
     {
-        public bool IsProvenHuman { get; internal set; }
-
-        public bool ShowFailMessage { get; internal set; }
+        public bool IsValidated { get; internal set; }
 
         public bool ShowSuccessMessage { get; internal set; }
+
+        public bool ShowFailMessage { get; internal set; }
 
         public string Identifier { get; internal set; }
 
         public string ImageName { get; internal set; }
+
+        public bool IsTokenExpired { get; internal set; }
     }
 
     public static class CaptchaManager
@@ -49,26 +51,35 @@ namespace PblTestWeb
             set { _extractImageNameFunc = value; }
         }
 
-        public static CaptchaState ValidateOrCreate(HttpContext context)
-        {
-            return ValidateOrCreate(context, 0, 0);
-        }
-
-        public static CaptchaState ValidateOrCreate(HttpContext context, int width, int height)
+        public static bool CheckIsValidated(HttpContext context)
         {
             if (context == null) throw new ArgumentNullException("context");
 
-            return ValidateOrCreate(context, context.Request[IdentifierElementName],
+            var captchaToken = context.Request.Cookies[AnonymousUploadCookieName];
+            return captchaToken != null &&
+                StatelessCaptchaService.CheckToken(captchaToken.Value) == true;
+        }
+
+        public static CaptchaState ValidateOrChallenge(HttpContext context)
+        {
+            return ValidateOrChallenge(context, 0, 0);
+        }
+
+        public static CaptchaState ValidateOrChallenge(HttpContext context, int width, int height)
+        {
+            if (context == null) throw new ArgumentNullException("context");
+
+            return ValidateOrChallenge(context, context.Request[IdentifierElementName],
                 context.Request[EntryElementName], width, height);
         }
 
-        public static CaptchaState ValidateOrCreate(
+        public static CaptchaState ValidateOrChallenge(
             HttpContext context, string identifier, string entry)
         {
-            return ValidateOrCreate(context, identifier, entry, 0, 0);
+            return ValidateOrChallenge(context, identifier, entry, 0, 0);
         }
 
-        public static CaptchaState ValidateOrCreate(
+        public static CaptchaState ValidateOrChallenge(
             HttpContext context, string identifier, string entry, int width, int height)
         {
             if (context == null) throw new ArgumentNullException("context");
@@ -76,15 +87,18 @@ namespace PblTestWeb
             var state = new CaptchaState();
 
             var captchaToken = context.Request.Cookies[AnonymousUploadCookieName];
+            var tokenState = captchaToken != null ?
+                StatelessCaptchaService.CheckToken(captchaToken.Value) : null;
 
-            if (captchaToken != null &&
-                StatelessCaptchaService.CheckToken(captchaToken.Value) == true)
+            if (tokenState == false) state.IsTokenExpired = true;
+
+            if (tokenState == true)
             {
-                state.IsProvenHuman = true;
+                state.IsValidated = true;
             }
             else if (StatelessCaptchaService.CheckEntry(identifier, entry))
             {
-                state.IsProvenHuman = true;
+                state.IsValidated = true;
                 state.ShowSuccessMessage = true;
 
                 var tokenCookie = new HttpCookie(AnonymousUploadCookieName,

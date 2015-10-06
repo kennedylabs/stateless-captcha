@@ -12,7 +12,7 @@
             <section>
                 <h1>Stateless Captcha</h1>
             </section>
-            <% if (!State.IsProvenHuman) %>
+            <% if (!State.IsValidated) %>
             <% { %>
             <section>
                 <input type="hidden" name="captcha-identifier" value="<% Response.Write(State.Identifier); %>" />
@@ -40,8 +40,8 @@
             <% } %>
             <% } %>
             <footer>
-                <input type="text" name="sample-entry" <%= State.IsProvenHuman ? string.Empty : "disabled" %> />
-                <input type="submit" value="Save" <%= State.IsProvenHuman ? string.Empty : "disabled" %> />
+                <input type="text" name="sample-entry" <% if (State.IsValidated) Response.Write("disabled"); %> />
+                <input type="submit" value="Save" <% if (State.IsValidated) Response.Write("disabled"); %> />
             </footer>
         </div>
     </form>
