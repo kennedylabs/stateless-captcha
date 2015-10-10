@@ -8,6 +8,11 @@ namespace PblTestWeb
 {
     public class CaptchaState
     {
+        private static readonly Lazy<CaptchaState> _authenticated = new Lazy<CaptchaState>(
+            () => new CaptchaState { IsAuthenticated = true });
+
+        public bool IsAuthenticated { get; internal set; }
+
         public bool IsValidated { get; internal set; }
 
         public bool ShowSuccessMessage { get; internal set; }
@@ -20,19 +25,26 @@ namespace PblTestWeb
 
         public string ImageName { get; internal set; }
 
+        public static CaptchaState Authenticated { get { return _authenticated.Value; } }
+
         public string AsXml()
         {
-            var xml = new XElement("CaptchaState",
-                new XAttribute("IsValidated", IsValidated),
-                new XAttribute("ShowSuccessMessage", ShowSuccessMessage),
-                new XAttribute("ShowFailMessage", ShowFailMessage),
-                new XAttribute("IsTokenExpired", IsTokenExpired));
+            var element = new XElement("CaptchaState",
+                new XAttribute("Authenticated", IsAuthenticated));
+
+            if (!IsAuthenticated)
+                element.Add(
+                    new XAttribute("IsValidated", IsValidated),
+                    new XAttribute("ShowSuccessMessage", ShowSuccessMessage),
+                    new XAttribute("ShowFailMessage", ShowFailMessage),
+                    new XAttribute("IsTokenExpired", IsTokenExpired));
 
             if (!string.IsNullOrEmpty(Identifier))
-                xml.Add(new XAttribute("Identifier", Identifier),
+                element.Add(
+                    new XAttribute("Identifier", Identifier),
                     new XAttribute("ImageName", ImageName));
 
-            return xml.ToString();
+            return element.ToString();
         }
     }
 
