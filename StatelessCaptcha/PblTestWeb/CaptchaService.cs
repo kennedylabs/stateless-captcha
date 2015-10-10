@@ -7,94 +7,72 @@ using System.Drawing.Drawing2D;
 using System.Drawing.Imaging;
 using System.Globalization;
 using System.IO;
+using System.Linq;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.RegularExpressions;
 
 namespace PblTestWeb
 {
-    public static class StatelessCaptchaService
+    public static class CaptchaService
     {
-        private static Tuple<int, int> _defaultImageSize = Tuple.Create(250, 100);
-        private static string _hashSecret = "qtsrgw";
-        private static string _tokenSecret = "kufach";
-        private static Tuple<string, string> _keyAndVectorSecret = Tuple.Create(
-            "LqdJRHxrbhUzErC5FJJ5Db5EGjsOuwMg05AIrT/r90g=", "IfwLX0zu1PAPLuQ28mSWtA==");
+        private const string _imageContentType = "image/png";
+        private const int _defaultWidth = 250;
+        private const int _defaultHeight = 100;
+        private const string _hashSecret = "qtsrgw";
+        private const string _encryptionKey = "LqdJRHxrbhUzErC5FJJ5Db5EGjsOuwMg05AIrT/r90g=";
+        private const string _encryptionIV = "IfwLX0zu1PAPLuQ28mSWtA==";
+        private const string _encryptionSecret = "kufach";
         private static readonly Random _random = new Random();
+        private static readonly Regex _identifierRegex = new Regex("^([a-z]{6})$");
         private static readonly Regex _fullImageNameRegex =
             new Regex("^([a-z]{6})([1-9][0-9]{1,2})x([1-9][0-9]{1,2})$");
-        private static readonly Regex _identifierRegex = new Regex("^([a-z]{6,8})$");
-        private static readonly Lazy<SHA256Managed> _sha256 = new Lazy<SHA256Managed>();
         private static readonly ConcurrentBag<string> _usedIdentifiersBag =
             new ConcurrentBag<string>();
 
-        public static Tuple<int, int> DefaultImageSize
-        {
-            get { return _defaultImageSize; }
-            set { _defaultImageSize = value; }
-        }
-
-        public static string HashSecret
-        {
-            get { return _hashSecret; }
-            set { _hashSecret = value; }
-        }
-
-        public static string TokenSecret
-        {
-            get { return _tokenSecret; }
-            set { _tokenSecret = value; }
-        }
-
-        public static Tuple<string, string> KeyAndVectorSecret
-        {
-            get { return _keyAndVectorSecret; }
-            set { _keyAndVectorSecret = value; }
-        }
+        public static string ImageContentType { get { return _imageContentType; } }
 
         public static string CreateIdentifier()
         {
-            var stringBuilder = new StringBuilder();
-
-            for (int index = 0; index < 6; index++)
-                stringBuilder.Append(Convert.ToChar(_random.Next(97, 123)));
-
-            return stringBuilder.ToString();
+            return new string(Enumerable.Repeat(Convert.ToByte('a'), 6)
+                .Select(a => Convert.ToChar(_random.Next(a, a + 26)))
+                .ToArray());
         }
 
         public static string CreateImageName(string identifier)
         {
-            return CreateImageName(identifier, 0, 0);
+            return CreateImageName(identifier, _defaultWidth, _defaultHeight);
         }
 
         public static string CreateImageName(string identifier, int width, int height)
         {
-            var size = width > 0 && height > 0 ? Tuple.Create(width, height) : DefaultImageSize;
-            return identifier + size.Item1 + "x" + size.Item2;
+            return identifier + width + "x" + height;
         }
 
-        public static byte[] GetImageFromName(string imageName)
+        public static MemoryStream GetImageFromName(string imageName)
         {
             var match = _fullImageNameRegex.Match(imageName);
 
             if (match.Success)
-                return GetImage(match.Groups[1].Value,
+                return GetImageFromIdentifier(match.Groups[1].Value,
                     int.Parse(match.Groups[2].Value, CultureInfo.InvariantCulture.NumberFormat),
                     int.Parse(match.Groups[3].Value, CultureInfo.InvariantCulture.NumberFormat));
             else
-                return GetImage(imageName);
+                return GetImageFromIdentifier(imageName);
         }
 
-        public static byte[] GetImage(string identifier)
+        public static MemoryStream GetImageFromIdentifier(string identifier)
         {
-            return GetImage(identifier, DefaultImageSize.Item1, DefaultImageSize.Item2);
+            return GetImageFromIdentifier(identifier, _defaultWidth, _defaultHeight);
         }
 
-        public static byte[] GetImage(string identifier, int width, int height)
+        public static MemoryStream GetImageFromIdentifier(string identifier, int width, int height)
         {
             var value = DoHash(_identifierRegex.IsMatch(identifier) ?
                 identifier : CreateIdentifier());
-            return CaptchaImageCreator.CreatePngImage(value, width, height);
+            var buffer = CaptchaImageCreator.CreatePngImage(value, width, height);
+
+            return new MemoryStream(buffer, 0, buffer.Length, false, true);
         }
 
         public static bool CheckEntry(string identifier, string entry)
@@ -127,80 +105,79 @@ namespace PblTestWeb
             while (_usedIdentifiersBag.Count >= 1000)
                 _usedIdentifiersBag.TryTake(out tempString);
 
-            _usedIdentifiersBag.Add(identifier);
+            var isOverused = _usedIdentifiersBag.Any(i => i == identifier);
 
-            var count = 0;
-            foreach (var usedIdentifier in _usedIdentifiersBag)
-            {
-                if (identifier == usedIdentifier) count++;
-                if (count > 1) break;
-            }
+            if (!isOverused) _usedIdentifiersBag.Add(identifier);
 
-            return count > 1;
+            return isOverused;
         }
 
         private static string DoHash(string identifier)
         {
-            var bytes = Encoding.UTF8.GetBytes(identifier + HashSecret);
-            bytes = _sha256.Value.ComputeHash(bytes);
+            var bytes = Encoding.UTF8.GetBytes(identifier + _hashSecret);
 
-            var stringBuilder = new StringBuilder();
+            using (var sha256Managed = new SHA256Managed())
+                bytes = sha256Managed.ComputeHash(bytes);
 
-            for (int index = 0; index < 6; index++)
-                stringBuilder.Append(Convert.ToChar(bytes[index] % 26 + 97));
-
-            return stringBuilder.ToString();
+            return new string(bytes
+                .Take(6)
+                .Select(b => Convert.ToChar(b % 26 + Convert.ToByte('a')))
+                .ToArray());
         }
 
-        [SuppressMessage("Microsoft.Design", "CA1031:DoNotCatchGeneralExceptionTypes")]
         private static string Encrypt(string input)
         {
-            try
-            {
-                using (var symetricAlgorithm = new RijndaelManaged())
-                {
-                    var key = Convert.FromBase64String(KeyAndVectorSecret.Item1);
-                    var iv = Convert.FromBase64String(KeyAndVectorSecret.Item2);
-                    var data = Encoding.UTF8.GetBytes(TokenSecret + input);
+            var text = default(string);
 
-                    using (var encryptor = symetricAlgorithm.CreateEncryptor(key, iv))
+            using (var symetricAlgorithm = new RijndaelManaged())
+            {
+                var key = Convert.FromBase64String(_encryptionKey);
+                var iv = Convert.FromBase64String(_encryptionIV);
+                var data = Encoding.UTF8.GetBytes(_encryptionSecret + input);
+
+                using (var encryptor = symetricAlgorithm.CreateEncryptor(key, iv))
+                {
+                    try
                     {
                         var buffer = encryptor.TransformFinalBlock(data, 0, data.Length);
-                        return Convert.ToBase64String(buffer);
+                        text = Convert.ToBase64String(buffer);
+                    }
+                    catch (CryptographicException)
+                    {
+                        text = string.Empty;
                     }
                 }
             }
-            catch (Exception)
-            {
-                return null;
-            }
+
+            return text;
         }
 
-        [SuppressMessage("Microsoft.Design", "CA1031:DoNotCatchGeneralExceptionTypes")]
         private static string Decrypt(string input)
         {
-            try
-            {
-                using (var symetricAlgorithm = new RijndaelManaged())
-                {
-                    var key = Convert.FromBase64String(KeyAndVectorSecret.Item1);
-                    var iv = Convert.FromBase64String(KeyAndVectorSecret.Item2);
-                    var data = Convert.FromBase64String(input);
+            var text = default(string);
 
-                    using (var decryptor = symetricAlgorithm.CreateDecryptor(key, iv))
+            using (var symetricAlgorithm = new RijndaelManaged())
+            {
+                var key = Convert.FromBase64String(_encryptionKey);
+                var iv = Convert.FromBase64String(_encryptionIV);
+                var data = Convert.FromBase64String(input);
+
+                using (var decryptor = symetricAlgorithm.CreateDecryptor(key, iv))
+                {
+                    try
                     {
                         var buffer = decryptor.TransformFinalBlock(data, 0, data.Length);
-                        var text = Encoding.UTF8.GetString(buffer);
-
-                        return text.StartsWith(TokenSecret, StringComparison.Ordinal) ?
-                            text.Substring(TokenSecret.Length) : null;
+                        text = Encoding.UTF8.GetString(buffer);
+                    }
+                    catch (CryptographicException)
+                    {
+                        text = string.Empty;
                     }
                 }
             }
-            catch
-            {
-                return null;
-            }
+
+            return text.StartsWith(_encryptionSecret, StringComparison.Ordinal) ?
+                text.Substring(_encryptionSecret.Length) : string.Empty;
         }
 
         private static class CaptchaImageCreator
@@ -273,21 +250,20 @@ namespace PblTestWeb
                     var radius = (float)(radiusMin +
                         _random.NextDouble() * (radiusMax - radiusMin));
 
-                    var isOverlap = true;
-                    for (int attempt = 0; isOverlap && attempt < 100; attempt++)
+                    for (int attempt = 0; attempt < 100; attempt++)
                     {
                         var x = (float)(xMin + _random.NextDouble() * (xMax - xMin));
                         var y = (float)(yMin + _random.NextDouble() * (yMax - yMin));
-                        var circle = new RectangleF(x - radius, y - radius, 2 * radius, 2 * radius);
+                        var circle = new RectangleF(
+                            x - radius, y - radius, 2 * radius, 2 * radius);
 
-                        isOverlap = false;
-                        for (int testIndex = 0; !isOverlap && testIndex < circles.Count; testIndex++)
-                            if (circle.IntersectsWith(circles[testIndex])) isOverlap = true;
+                        var isOverlap = circles.Any(c => c.IntersectsWith(circle));
 
-                        if (!isOverlap || circles.Count == 0)
+                        if (!isOverlap)
                         {
                             circles.Add(circle);
                             path.AddEllipse(circle);
+                            break;
                         }
                     }
                 }

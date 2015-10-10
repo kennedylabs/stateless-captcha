@@ -10,7 +10,8 @@ namespace PblTestWeb
 
         protected void Page_Load(object sender, EventArgs e)
         {
-            State = CaptchaManager.ValidateOrChallenge(HttpContext.Current);
+            State = CaptchaManager.ValidateOrChallenge(HttpContext.Current,
+                Request["captcha-identifier"], Request["captcha-entry"]);
         }
     }
 }

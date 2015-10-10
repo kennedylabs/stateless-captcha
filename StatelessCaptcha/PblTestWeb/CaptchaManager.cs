@@ -1,6 +1,8 @@
 ﻿using System;
+using System.IO;
 using System.Linq;
 using System.Web;
+using System.Xml.Linq;
 
 namespace PblTestWeb
 {
@@ -12,65 +14,44 @@ namespace PblTestWeb
 
         public bool ShowFailMessage { get; internal set; }
 
+        public bool IsTokenExpired { get; internal set; }
+
         public string Identifier { get; internal set; }
 
         public string ImageName { get; internal set; }
 
-        public bool IsTokenExpired { get; internal set; }
+        public string AsXml()
+        {
+            var xml = new XElement("CaptchaState",
+                new XAttribute("IsValidated", IsValidated),
+                new XAttribute("ShowSuccessMessage", ShowSuccessMessage),
+                new XAttribute("ShowFailMessage", ShowFailMessage),
+                new XAttribute("IsTokenExpired", IsTokenExpired));
+
+            if (!string.IsNullOrEmpty(Identifier))
+                xml.Add(new XAttribute("Identifier", Identifier),
+                    new XAttribute("ImageName", ImageName));
+
+            return xml.ToString();
+        }
     }
 
     public static class CaptchaManager
     {
-        private static string _anonymousUploadCookieName = "CMXUPLOADAUTH";
-        private static string _identifierElementName = "captcha-identifier";
-        private static string _entryElementName = "captch-entry";
-        private static Func<string, string> _extractImageNameFunc = u => u.Split(
-            new char[] { '?', '/' }, StringSplitOptions.RemoveEmptyEntries).LastOrDefault();
+        private const string _anonymousUploadCookieName = "CMXUPLOADAUTH";
 
-        public static string AnonymousUploadCookieName
+        public static string ImageContentType
         {
-            get { return _anonymousUploadCookieName; }
-            set { _anonymousUploadCookieName = value; }
-        }
-
-        public static string IdentifierElementName
-        {
-            get { return _identifierElementName; }
-            set { _identifierElementName = value; }
-        }
-
-        public static string EntryElementName
-        {
-            get { return _entryElementName; }
-            set { _entryElementName = value; }
-        }
-
-        public static Func<string, string> ExtractImageNameFunc
-        {
-            get { return _extractImageNameFunc; }
-            set { _extractImageNameFunc = value; }
+            get { return CaptchaService.ImageContentType; }
         }
 
         public static bool CheckIsValidated(HttpContext context)
         {
             if (context == null) throw new ArgumentNullException("context");
 
-            var captchaToken = context.Request.Cookies[AnonymousUploadCookieName];
+            var captchaToken = context.Request.Cookies[_anonymousUploadCookieName];
             return captchaToken != null &&
-                StatelessCaptchaService.CheckToken(captchaToken.Value) == true;
-        }
-
-        public static CaptchaState ValidateOrChallenge(HttpContext context)
-        {
-            return ValidateOrChallenge(context, 0, 0);
-        }
-
-        public static CaptchaState ValidateOrChallenge(HttpContext context, int width, int height)
-        {
-            if (context == null) throw new ArgumentNullException("context");
-
-            return ValidateOrChallenge(context, context.Request[IdentifierElementName],
-                context.Request[EntryElementName], width, height);
+                CaptchaService.CheckToken(captchaToken.Value) == true;
         }
 
         public static CaptchaState ValidateOrChallenge(
@@ -86,9 +67,9 @@ namespace PblTestWeb
 
             var state = new CaptchaState();
 
-            var captchaToken = context.Request.Cookies[AnonymousUploadCookieName];
+            var captchaToken = context.Request.Cookies[_anonymousUploadCookieName];
             var tokenState = captchaToken != null ?
-                StatelessCaptchaService.CheckToken(captchaToken.Value) : null;
+                CaptchaService.CheckToken(captchaToken.Value) : null;
 
             if (tokenState == false) state.IsTokenExpired = true;
 
@@ -96,13 +77,13 @@ namespace PblTestWeb
             {
                 state.IsValidated = true;
             }
-            else if (StatelessCaptchaService.CheckEntry(identifier, entry))
+            else if (CaptchaService.CheckEntry(identifier, entry))
             {
                 state.IsValidated = true;
                 state.ShowSuccessMessage = true;
 
-                var tokenCookie = new HttpCookie(AnonymousUploadCookieName,
-                    StatelessCaptchaService.CreateToken(60));
+                var tokenCookie = new HttpCookie(_anonymousUploadCookieName,
+                    CaptchaService.CreateToken(60));
 
                 HttpContext.Current.Response.Cookies.Add(tokenCookie);
             }
@@ -110,23 +91,23 @@ namespace PblTestWeb
             {
                 if (!string.IsNullOrEmpty(entry)) state.ShowFailMessage = true;
 
-                state.Identifier = StatelessCaptchaService.CreateIdentifier();
+                state.Identifier = CaptchaService.CreateIdentifier();
                 state.ImageName = width == 0 || height == 0 ?
-                    StatelessCaptchaService.CreateImageName(state.Identifier) :
-                    StatelessCaptchaService.CreateImageName(state.Identifier, width, height);
+                    CaptchaService.CreateImageName(state.Identifier) :
+                    CaptchaService.CreateImageName(state.Identifier, width, height);
             }
 
             return state;
         }
 
-        public static void WriteImageToResponse(HttpContext context)
+        public static MemoryStream CreateImageStream(Uri requestUri)
         {
-            if (context == null) throw new ArgumentNullException("context");
+            if (requestUri == null) throw new ArgumentNullException("requestUri");
 
-            var imageName = ExtractImageNameFunc(context.Request.Url.AbsoluteUri);
+            var imageName = requestUri.AbsoluteUri.Split(
+                new char[] { '?', '/' }, StringSplitOptions.RemoveEmptyEntries).LastOrDefault();
 
-            context.Response.ContentType = "image/png";
-            context.Response.BinaryWrite(StatelessCaptchaService.GetImageFromName(imageName));
+            return CaptchaService.GetImageFromName(imageName);
         }
     }
 }
